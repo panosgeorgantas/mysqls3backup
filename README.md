@@ -3,7 +3,7 @@
 install as:
 ```
 mkdir /backup/bin -p
-curl  -o /backup/bin/mysqlbackup.sh; chmod a+x /backup/bin/mysqlbackup.sh
+curl https://raw.githubusercontent.com/panosgeorgantas/mysqls3backup/master/mysqlbackup.sh -o /backup/bin/mysqlbackup.sh; chmod a+x /backup/bin/mysqlbackup.sh
 echo `shuf -i 1-30 -n 1` 03 \* \* \* root /backup/bin/mysqlbackup.sh \>/dev/null > /etc/cron.d/mysqlbackup
 ```
 
