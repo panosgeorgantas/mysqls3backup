@@ -9,7 +9,7 @@ BACKUP_KEEP_DAYS=7
 BACK_LOG=$BACKUP_DIR/_00_mysqlbackup_all.log
 TOTAL_MINS=0
 
-MYSQL_LOGIN="-u root --password=root"
+MYSQL_LOGIN="-u $MYSQL_USER --password=$MYSQL_PASS"
 
 echo `date` > $BACK_LOG
 
