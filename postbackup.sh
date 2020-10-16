@@ -146,7 +146,7 @@ curl -s -L --proto-redir =https -X "${httpReq}" -T "${fileLocal}" \
 
 for db in `sudo -u postgres psql  -t -A -c 'SELECT datname FROM pg_database' | grep -v template`;do
 	backupdb $db || curl -s -X POST -H 'Content-type: application/json' --data "{\"text\":\"db backup of $db at `hostname -f` failed\"}" $SLACK_HOOK >/dev/null
-	s3upload_file $BACKUP_DIR/${db}/${db}_${TIMESTAMP}.custom `hostname -f`_`dmidecode -t 4 | grep ID | sed 's/.*ID://;s/ //g'`/${db}/${db}_${TIMESTAMP}.custom || curl -s -X POST -H 'Content-type: application/json' --data "{\"text\":\"s3 upload of db backup of $db at `hostname -f` failed\"}" $SLACK_HOOK >/dev/null
+	s3upload_file $BACKUP_DIR/${db}/${db}_${TIMESTAMP}.custom `hostname -f`_`dmidecode -t 4 | grep ID | head -n 1 | sed 's/.*ID://;s/ //g'`/${db}/${db}_${TIMESTAMP}.custom || curl -s -X POST -H 'Content-type: application/json' --data "{\"text\":\"s3 upload of db backup of $db at `hostname -f` failed\"}" $SLACK_HOOK >/dev/null
 
 done
 
