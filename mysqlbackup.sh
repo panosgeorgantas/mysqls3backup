@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. `basename $0`.env
+. "$0.env"
 
 BACKUP_DIR="$(dirname "$0")/../data"
 mkdir -p "$BACKUP_DIR"
@@ -9,7 +9,7 @@ BACKUP_KEEP_DAYS=7
 BACK_LOG=$BACKUP_DIR/_00_mysqlbackup_all.log
 TOTAL_MINS=0
 
-MYSQL_LOGIN="-u $MYSQL_USER --password=$MYSQL_PASS"
+MYSQL_LOGIN="-u $MYSQL_USER --password=$MYSQL_PASSWORD"
 
 echo `date` > $BACK_LOG
 
@@ -97,7 +97,7 @@ fi
 
 # NOTE: order significant in ${headerList} and ${canonicalRequest}
 
-headerList='content-type;host;x-amz-content-sha256;x-amz-date;x-amz-server-side-encryption;x-amz-storage-class'
+headerList='content-type;host;x-amz-content-sha256;x-amz-date;x-amz-storage-class'
 
 canonicalRequest="\
 ${httpReq}
@@ -107,7 +107,6 @@ content-type:${contentType}
 host:${bucket}${baseUrl}
 x-amz-content-sha256:${payloadHash}
 x-amz-date:${dateValueL}
-x-amz-server-side-encryption:AES256
 x-amz-storage-class:${storageClass}
 
 ${headerList}
@@ -136,20 +135,19 @@ curl -s -L --proto-redir =https -X "${httpReq}" -T "${fileLocal}" \
   -H "Host: ${bucket}${baseUrl}" \
   -H "X-Amz-Content-SHA256: ${payloadHash}" \
   -H "X-Amz-Date: ${dateValueL}" \
-  -H "X-Amz-Server-Side-Encryption: AES256" \
   -H "X-Amz-Storage-Class: ${storageClass}" \
   -H "Authorization: ${authType} Credential=${awsAccess}/${dateValueS}/${region}/${service}/aws4_request, SignedHeaders=${headerList}, Signature=${signature}" \
   "https://${bucket}${baseUrl}/${fileRemote}"
 
+#  -H "X-Amz-Server-Side-Encryption: AES256" \
 }
 
 
 
 for db in `echo 'show databases;' | mysql |grep -v information_schema | grep -v performance_schema | tail -n +2`;do
 	backupdb $db || curl -s -X POST -H 'Content-type: application/json' --data "{\"text\":\"db backup of $db at `hostname -f` failed\"}" $SLACK_HOOK >/dev/null
-	s3upload_file $BACKUP_DIR/${db}/${db}_${TIMESTAMP}.sql.gz `hostname -f`_`dmidecode -t 4 | grep ID | head -n 1 | sed 's/.*ID://;s/ //g'`/${db}/${db}_${TIMESTAMP}.sql.gz || curl -s -X POST -H 'Content-type: application/json' --data "{\"text\":\"s3 upload of db backup of $db at `hostname -f` failed\"}" $SLACK_HOOK >/dev/null
+	s3upload_file $BACKUP_DIR/${db}/${db}_${TIMESTAMP}.sql.gz `hostname -f`_`dmidecode -t 4 | grep ID | sed 's/.*ID://;s/ //g'`/${db}/${db}_${TIMESTAMP}.sql.gz || curl -s -X POST -H 'Content-type: application/json' --data "{\"text\":\"s3 upload of db backup of $db at `hostname -f` failed\"}" $SLACK_HOOK >/dev/null
 
 done
 
 #cat $BACK_LOG | mail -s "[BackupDB][mysql@$HOSTNAME]finished in $TOTAL_MINS mins" $BACKUP_MAIL
-
