@@ -1,6 +1,8 @@
 #!/bin/bash
 
-. `basename $0`.env
+set -o pipefail
+
+. "$0.env"
 
 BACKUP_DIR="$(dirname "$0")/../data"
 mkdir -p "$BACKUP_DIR"
@@ -26,7 +28,7 @@ echo "`date` -- Starting backup of $DBNAME" >> $BACK_LOG
 mkdir -p $BACKUP_DIR/$DBNAME
 chown postgres:postgres $BACKUP_DIR/$DBNAME
 
-sudo -u postgres pg_dump -Z 9 -F c $DBNAME > $BACKUP_DIR/$DBNAME/${DBNAME}_${TIMESTAMP}.custom
+sudo -u postgres pg_dump -Z 9 -F c $DBNAME > $BACKUP_DIR/$DBNAME/${DBNAME}_${TIMESTAMP}.custom || retun 1
 
 ENDD=`date +%s`
 MINS=$(((($ENDD-$STARTD)/60)+1))
@@ -96,7 +98,7 @@ fi
 
 # NOTE: order significant in ${headerList} and ${canonicalRequest}
 
-headerList='content-type;host;x-amz-content-sha256;x-amz-date;x-amz-server-side-encryption;x-amz-storage-class'
+headerList='content-type;host;x-amz-content-sha256;x-amz-date;x-amz-storage-class'
 
 canonicalRequest="\
 ${httpReq}
@@ -106,7 +108,6 @@ content-type:${contentType}
 host:${bucket}${baseUrl}
 x-amz-content-sha256:${payloadHash}
 x-amz-date:${dateValueL}
-x-amz-server-side-encryption:AES256
 x-amz-storage-class:${storageClass}
 
 ${headerList}
@@ -130,12 +131,11 @@ signature=$(awsStringSign4 "${awsSecret}" "${dateValueS}" "${region}" "${service
 
 # Upload
 
-curl -s -L --proto-redir =https -X "${httpReq}" -T "${fileLocal}" \
+curl --fail -s -L --proto-redir =https -X "${httpReq}" -T "${fileLocal}" \
   -H "Content-Type: ${contentType}" \
   -H "Host: ${bucket}${baseUrl}" \
   -H "X-Amz-Content-SHA256: ${payloadHash}" \
   -H "X-Amz-Date: ${dateValueL}" \
-  -H "X-Amz-Server-Side-Encryption: AES256" \
   -H "X-Amz-Storage-Class: ${storageClass}" \
   -H "Authorization: ${authType} Credential=${awsAccess}/${dateValueS}/${region}/${service}/aws4_request, SignedHeaders=${headerList}, Signature=${signature}" \
   "https://${bucket}${baseUrl}/${fileRemote}"
@@ -145,8 +145,10 @@ curl -s -L --proto-redir =https -X "${httpReq}" -T "${fileLocal}" \
 
 
 for db in `sudo -u postgres psql  -t -A -c 'SELECT datname FROM pg_database' | grep -v template`;do
-	backupdb $db || curl -s -X POST -H 'Content-type: application/json' --data "{\"text\":\"db backup of $db at `hostname -f` failed\"}" $SLACK_HOOK >/dev/null
-	s3upload_file $BACKUP_DIR/${db}/${db}_${TIMESTAMP}.custom `hostname -f`_`dmidecode -t 4 | grep ID | head -n 1 | sed 's/.*ID://;s/ //g'`/${db}/${db}_${TIMESTAMP}.custom || curl -s -X POST -H 'Content-type: application/json' --data "{\"text\":\"s3 upload of db backup of $db at `hostname -f` failed\"}" $SLACK_HOOK >/dev/null
+	backupdb $db
+	[ $? -ne 0 ] && curl -s -X POST -H 'Content-type: application/json' --data "{\"text\":\"db backup of $db at `hostname -f` failed\"}" $SLACK_HOOK >/dev/null
+	s3upload_file $BACKUP_DIR/${db}/${db}_${TIMESTAMP}.custom `hostname -f`_`dmidecode -t 4 | grep ID | head -n 1 | sed 's/.*ID://;s/ //g'`/${db}/${db}_${TIMESTAMP}.custom
+	[ $? -ne 0 ] && curl -s -X POST -H 'Content-type: application/json' --data "{\"text\":\"s3 upload of db backup of $db at `hostname -f` failed\"}" $SLACK_HOOK >/dev/null
 
 done
 
